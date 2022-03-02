@@ -104,6 +104,11 @@ impl Direction {
         ))
     }
 
+    pub fn reflect(&self, normal: &Self) -> Self {
+        let r = self.dot(normal) * 2.0;
+        Direction(self.0 - (normal.0 * r))
+    }
+
     pub fn normalize(&mut self) -> () {
         let mag = self.0.magnitude();
         self.0.0 /= mag;
@@ -140,5 +145,12 @@ mod test {
         assert_eq!(
             Direction(Vec3(1.0,0.0,0.0)).cross(&Direction(Vec3(0.0,1.0,0.0))),
             Direction(Vec3(0.0,0.0,1.0)));
+    }
+
+    #[test]
+    fn reflect(){
+        assert_eq!(
+            Direction(Vec3(1.0,1.0,0.0)).reflect(&Direction(Vec3(0.0,1.0,0.0))),
+            Direction(Vec3(1.0,-1.0,0.0)));
     }
 }
