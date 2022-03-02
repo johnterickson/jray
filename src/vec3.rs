@@ -1,10 +1,10 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub struct Vec3(pub f32, pub f32, pub f32);
+pub struct Vec3(pub f64, pub f64, pub f64);
 
 impl Vec3 {
-    pub fn magnitude(&self) -> f32 {
+    pub fn magnitude(&self) -> f64 {
         (self.0 * self.0 + self.1 * self.1 + self.2 * self.2).sqrt()
     }
 
@@ -57,18 +57,18 @@ impl Sub for Vec3 {
     }
 }
 
-impl MulAssign<f32> for Vec3 {
-    fn mul_assign(&mut self, rhs: f32) {
+impl MulAssign<f64> for Vec3 {
+    fn mul_assign(&mut self, rhs: f64) {
         self.0 *= rhs;
         self.1 *= rhs;
         self.2 *= rhs;
     }
 }
 
-impl Mul<f32> for Vec3 {
+impl Mul<f64> for Vec3 {
     type Output = Vec3;
 
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: f64) -> Self::Output {
         let mut result = self;
         result *= rhs;
         result
@@ -90,7 +90,7 @@ impl Sub for Point {
 pub struct Direction(pub Vec3);
 
 impl Direction {
-    pub fn dot(&self, rhs: &Self) -> f32 {
+    pub fn dot(&self, rhs: &Self) -> f64 {
         self.0.0 * rhs.0.0 + 
         self.0.1 * rhs.0.1 +
         self.0.2 * rhs.0.2
