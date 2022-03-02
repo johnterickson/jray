@@ -15,7 +15,7 @@ impl Vec3 {
         self.2 /= mag;
     }
 
-    pub fn normalized(mut self) -> Vec3 {
+    pub fn normalized(mut self) -> Self {
         self.normalize();
         self
     }
@@ -103,17 +103,30 @@ impl Direction {
             self.0.0*rhs.0.1 - self.0.1*rhs.0.0
         ))
     }
+
+    pub fn normalize(&mut self) -> () {
+        let mag = self.0.magnitude();
+        self.0.0 /= mag;
+        self.0.1 /= mag;
+        self.0.2 /= mag;
+    }
+
+    pub fn normalized(mut self) -> Self {
+        self.normalize();
+        self
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Ray(pub Point, pub Direction);
 
 impl Ray {
-    fn from_points(from: Point, to: Point) -> Ray {
-        Ray(from, to - from)
+    pub fn from_points(from: Point, to: Point) -> Ray {
+        Ray(from, Direction((to.0 - from.0).normalized()))
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
 
