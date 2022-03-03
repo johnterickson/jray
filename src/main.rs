@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 mod vec3;
 use vec3::*;
 
@@ -41,7 +43,7 @@ struct Scene {
     camera: Camera,
     imgx: u32,
     imgy: u32,
-    shapes: Vec<Box<dyn Intersect>>,
+    shapes: Vec<Box<dyn Intersect + Send + Sync>>,
     lights: Vec<Light>,
 }
 
@@ -58,17 +60,38 @@ impl Scene {
     fn render_ray(&self, ray: &Ray) -> Color {
         let mut color = BLACK;
         if let Some(i) = self.closest_intersection(&ray) {
-            color = color + Color(0.05, 0.05, 0.05); // ambient
+            color += Color(0.1, 0.1, 0.1); // ambient
 
             let slightly_off_surface = Point(i.point.0 + i.normal.0 * 0.00001);
             for l in &self.lights {
-                let light_dir = l.position - i.point;
-                let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
-                if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
+                let mut shaded = 0;
+                let mut total = 0;
+                for xx in [-0.02, 0.0, 0.02] {
+                    for yy in [-0.02, 0.0, 0.02] {
+                        for zz in [-0.02, 0.0, 0.02] {
+                            let mut l_pos = l.position;
+                            l_pos.0.0 += xx;
+                            l_pos.0.1 += yy;
+                            l_pos.0.2 += zz;
+
+                            let light_dir = l_pos - i.point;
+                            let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
+                            if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
+                                shaded += 1;
+                            }
+                            total += 1;
+                        }
+                    }
+                }
+
+                if shaded == total {
                     continue;
                 }
+
+                let unblocked = 1.0 - shaded as f64 / total as f64;
+                let light_dir = l.position - i.point;
                 let light_distance = light_dir.0.magnitude();
-                let apparent_brightness = l.intensity / light_distance * light_distance;
+                let apparent_brightness = unblocked * l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
                 let diffuse = apparent_brightness * i.normal.dot(&light_dir).clamp(0.0, 1.0);
@@ -86,7 +109,7 @@ impl Scene {
                 assert!(c.0 >= 0.0);
                 assert!(c.1 >= 0.0);
                 assert!(c.2 >= 0.0);
-                color = color + c;
+                color += c;
             }
         }
 
@@ -107,44 +130,47 @@ impl Scene {
         let center_y = self.imgy as f64 / 2.0;
 
         // Iterate over the coordinates and pixels of the image
-        for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
-            let mut color = BLACK;
+        let mut pixels: Vec<_> = imgbuf.enumerate_pixels_mut().collect();
+        pixels//.iter_mut()
+              .par_iter_mut()
+              .for_each(|(x, y, pixel)| {
+                let mut color = BLACK;
 
-            let mut count = 0;
-            for xx in [-0.33, 0.0, 0.33] {
-                for yy in [-0.33, 0.0, 0.33] {
-                    let x = xx + x as f64;
-                    let y = yy + y as f64;
-                    let radians_x = (x - center_x) / (self.imgx as f64) * camera_w_fov_radians;
-                    let radians_y = (center_y - y) / (self.imgy as f64) * caemra_h_fov_radians;
-                    let pixel_dir = self.camera.ray.1 .0
-                        + camera_right.0 * radians_x
-                        + self.camera.up.0 * radians_y;
-                    let pixel_dir = Direction(pixel_dir.normalized());
-                    let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
-
-                    color += self.render_ray(&pixel_ray);
-                    count += 1;
+                let mut count = 0;
+                for xx in [-0.33, 0.0, 0.33] {
+                    for yy in [0.33, 0.0, 0.33] {
+                        let x = xx + *x as f64;
+                        let y = yy + *y as f64;
+                        let radians_x = (x - center_x) / (self.imgx as f64) * camera_w_fov_radians;
+                        let radians_y = (center_y - y) / (self.imgy as f64) * caemra_h_fov_radians;
+                        let pixel_dir = self.camera.ray.1.0
+                            + camera_right.0 * radians_x
+                            + self.camera.up.0 * radians_y;
+                        let pixel_dir = Direction(pixel_dir.normalized());
+                        let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
+    
+                        color += self.render_ray(&pixel_ray);
+                        count += 1;
+                    }
                 }
-            }
-
-            color *= 1.0 / count as f64;
-
-            *pixel = image::Rgb(color.to_rgb());
-        }
+    
+                color *= 1.0 / count as f64;
+    
+                **pixel = image::Rgb(color.to_rgb());
+              });
 
         imgbuf.save(path).unwrap();
     }
 }
 
 fn main() {
-    let shapes: Vec<Box<dyn Intersect>> = vec![
+    let shapes: Vec<Box<dyn Intersect + Send + Sync>> = vec![
         Box::new(Sphere(
             Point(Vec3(0.0, 0.0, 0.0)),
             0.7,
             Material {
                 diffuse_color: BLUE,
-                specular_color: 0.5 * WHITE,
+                specular_color: 1.0 * WHITE,
                 shininess: 50.0,
             },
         )),
@@ -179,14 +205,14 @@ fn main() {
 
     let lights = vec![
         Light {
-            position: Point(Vec3(-2.0, -2.0, 2.0)),
+            position: Point(Vec3(-2.0, 1.0, 0.7)),
             color: WHITE,
-            intensity: 2.0,
+            intensity: 0.9,
         },
         Light {
-            position: Point(Vec3(-2.0, 3.0, 0.7)),
+            position: Point(Vec3(-2.0, -2.0, 2.0)),
             color: WHITE,
-            intensity: 0.5,
+            intensity: 0.7,
         },
     ];
 
@@ -194,10 +220,10 @@ fn main() {
         camera: Camera {
             ray: Ray::from_points(Point(Vec3(-10.0, 0.0, 0.0)), Point(Vec3(0.0, 0.0, 0.0))),
             up: Direction(Vec3(0.0, 0.0, 1.0)),
-            w_fov_degrees: 20.0,
+            w_fov_degrees: 50.0,
         },
-        imgx: 800,
-        imgy: 800,
+        imgx: 1000,
+        imgy: 1000,
         shapes,
         lights,
     };
