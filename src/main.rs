@@ -1,35 +1,15 @@
 mod vec3;
-use std::ops::{Add, Mul};
-
 use vec3::*;
 
-#[derive(Copy, Clone)]
-struct Color(f64, f64, f64);
+mod color;
+use color::*;
 
-const RED: Color = Color(1.0, 0.0, 0.0);
-const GREEN: Color = Color(0.0, 1.0, 0.0);
-const BLUE: Color = Color(0.0, 0.0, 1.0);
-const WHITE: Color = Color(1.0, 1.0, 1.0);
-const BLACK: Color = Color(0.0, 0.0, 0.0);
+mod sphere;
+use sphere::*;
 
-impl Add<Color> for Color {
-    type Output = Self;
-
-    fn add(self, rhs: Color) -> Self::Output {
-        Color(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
-    }
-}
-
-impl Mul<Color> for f64 {
-    type Output = Color;
-
-    fn mul(self, rhs: Color) -> Self::Output {
-        Color(rhs.0 * self, rhs.1 * self, rhs.2 * self)
-    }
-}
 
 #[derive(Copy, Clone)]
-struct Material {
+pub struct Material {
     pub diffuse_color: Color,
     pub specular_color: Color,
     pub shininess: f64,
@@ -50,64 +30,6 @@ struct Intersection {
 
 trait Intersect {
     fn find_intersection(&self, r: &Ray) -> Option<Intersection>;
-}
-
-struct Sphere(Point, f64, Material);
-
-impl Intersect for Sphere {
-    #![allow(non_snake_case)]
-    // https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection
-    fn find_intersection(&self, r: &Ray) -> Option<Intersection> {
-        let O = r.0;
-        let D = r.1;
-        let C = self.0;
-        let R = self.1;
-
-        let O_minus_C = O - C;
-
-        let a = 1.0;
-        let b = 2.0 * D.dot(&O_minus_C);
-        let c = O_minus_C.dot(&O_minus_C) - R * R;
-
-        let discriminant = b * b - 4.0 * a * c;
-        let t = if discriminant < 0.0 {
-            return None;
-        } else if discriminant == 0.0 {
-            let t = b / (-2.0 * a);
-            if t >= 0.0 {
-                Some(t)
-            } else {
-                None
-            }
-        } else {
-            let t0 = (discriminant.sqrt() - b) / (2.0 * a);
-            let t1 = (discriminant.sqrt() + b) / (-2.0 * a);
-            if t0 < 0.0 {
-                if t1 < 0.0 {
-                    None
-                } else {
-                    Some(t1)
-                }
-            } else {
-                if t1 < 0.0 {
-                    Some(t0)
-                } else {
-                    Some(f64::min(t0, t1))
-                }
-            }
-        };
-
-        t.map(|t| {
-            let P = Point(O.0 + D.0 * t);
-            let normal = P - C;
-            Intersection {
-                distance: t,
-                point: P,
-                normal: normal.normalized(),
-                material: self.2,
-            }
-        })
-    }
 }
 
 struct Camera {
@@ -135,13 +57,13 @@ impl Scene {
     }
 
     fn render_ray(&self, ray: &Ray) -> Color {
-        let closest = self.closest_intersection(&ray);
-
         let mut color = BLACK;
-        if let Some(i) = closest {
+        if let Some(i) = self.closest_intersection(&ray) {
+            color = color + Color(0.05,0.05,0.05); // ambient
+
+            let slightly_off_surface = Point(i.point.0 + i.normal.0 * 0.00001);
             for l in &self.lights {
                 let light_dir = l.position - i.point;
-                let slightly_off_surface = Point(i.point.0 + i.normal.0 * 0.00001);
                 let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
                 if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
                     continue;
@@ -150,7 +72,10 @@ impl Scene {
                 let apparent_brightness = l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
-                let diffuse = apparent_brightness * i.normal.dot(&light_dir).clamp(0.0, 1.0);
+                let diffuse = apparent_brightness
+                    * i.normal
+                        .dot(&light_dir)
+                        .clamp(0.0, 1.0);
                 assert!(diffuse >= 0.0);
                 let light_reflect = light_dir.reflect(&i.normal);
                 let specular = apparent_brightness
@@ -159,17 +84,11 @@ impl Scene {
                         .clamp(0.0, 1.0)
                         .powf(i.material.shininess);
                 assert!(specular >= 0.0);
-                let c = Color(
-                    l.color.0
-                        * (diffuse * i.material.diffuse_color.0
-                            + specular * i.material.specular_color.0),
-                    l.color.1
-                        * (diffuse * i.material.diffuse_color.1
-                            + specular * i.material.specular_color.1),
-                    l.color.2
-                        * (diffuse * i.material.diffuse_color.2
-                            + specular * i.material.specular_color.2),
-                );
+
+                let c = l.color * (diffuse * i.material.diffuse_color + specular * i.material.specular_color);
+                assert!(c.0 >= 0.0);
+                assert!(c.1 >= 0.0);
+                assert!(c.2 >= 0.0);
                 color = color + c;
             }
         }
@@ -193,6 +112,8 @@ impl Scene {
         // Iterate over the coordinates and pixels of the image
         for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
             let mut color = BLACK;
+
+            let mut count = 0;
             for xx in [-0.33, 0.0, 0.33] {
                 for yy in [-0.33, 0.0, 0.33] {
                     let x = xx + x as f64;
@@ -204,15 +125,14 @@ impl Scene {
                     let pixel_dir = Direction(pixel_dir.normalized());
                     let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
 
-                    color = color + self.render_ray(&pixel_ray);
+                    color += self.render_ray(&pixel_ray);
+                    count += 1;
                 }
             }
+
+            color *= 1.0 / count as f64;
             
-            *pixel = image::Rgb([
-                (color.0 * 256.0 / 9.0).clamp(0.0, 255.0) as u8,
-                (color.1 * 256.0 / 9.0).clamp(0.0, 255.0) as u8,
-                (color.2 * 256.0 / 9.0).clamp(0.0, 255.0) as u8,
-            ]);
+            *pixel = image::Rgb(color.to_rgb());
         }
 
         imgbuf.save(path).unwrap();
@@ -235,7 +155,7 @@ fn main() {
             1.0,
             Material {
                 diffuse_color: RED,
-                specular_color: 0.5 * WHITE,
+                specular_color: 0.0 * WHITE,
                 shininess: 50.0,
             },
         )),
@@ -261,12 +181,12 @@ fn main() {
 
     let lights = vec![
         Light {
-            position: Point(Vec3(-2.0, -2.0, 1.0)),
+            position: Point(Vec3(-2.0, -2.0, 2.0)),
             color: WHITE,
-            intensity: 0.5,
+            intensity: 2.0,
         },
         Light {
-            position: Point(Vec3(-2.0, 2.0, 1.0)),
+            position: Point(Vec3(-2.0, 3.0, 0.7)),
             color: WHITE,
             intensity: 0.5,
         },
@@ -276,7 +196,7 @@ fn main() {
         camera: Camera {
             ray: Ray::from_points(Point(Vec3(-10.0, 0.0, 0.0)), Point(Vec3(0.0, 0.0, 0.0))),
             up: Direction(Vec3(0.0, 0.0, 1.0)),
-            w_fov_degrees: 60.0,
+            w_fov_degrees: 20.0,
         },
         imgx: 800,
         imgy: 800,
