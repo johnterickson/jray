@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Vec3(pub f64, pub f64, pub f64);
@@ -91,16 +91,14 @@ pub struct Direction(pub Vec3);
 
 impl Direction {
     pub fn dot(&self, rhs: &Self) -> f64 {
-        self.0.0 * rhs.0.0 + 
-        self.0.1 * rhs.0.1 +
-        self.0.2 * rhs.0.2
+        self.0 .0 * rhs.0 .0 + self.0 .1 * rhs.0 .1 + self.0 .2 * rhs.0 .2
     }
-    
+
     pub fn cross(&self, rhs: &Self) -> Self {
         Direction(Vec3(
-            self.0.1*rhs.0.2 - self.0.2*rhs.0.1,
-            self.0.2*rhs.0.0 - self.0.0*rhs.0.2,
-            self.0.0*rhs.0.1 - self.0.1*rhs.0.0
+            self.0 .1 * rhs.0 .2 - self.0 .2 * rhs.0 .1,
+            self.0 .2 * rhs.0 .0 - self.0 .0 * rhs.0 .2,
+            self.0 .0 * rhs.0 .1 - self.0 .1 * rhs.0 .0,
         ))
     }
 
@@ -111,9 +109,9 @@ impl Direction {
 
     pub fn normalize(&mut self) -> () {
         let mag = self.0.magnitude();
-        self.0.0 /= mag;
-        self.0.1 /= mag;
-        self.0.2 /= mag;
+        self.0 .0 /= mag;
+        self.0 .1 /= mag;
+        self.0 .2 /= mag;
     }
 
     pub fn normalized(mut self) -> Self {
@@ -136,21 +134,26 @@ mod test {
     use super::*;
 
     #[test]
-    fn add(){
-        assert_eq!(Vec3(1.0,2.0,3.0) + Vec3(4.0,6.0,9.0), Vec3(5.0,8.0,12.0));
+    fn add() {
+        assert_eq!(
+            Vec3(1.0, 2.0, 3.0) + Vec3(4.0, 6.0, 9.0),
+            Vec3(5.0, 8.0, 12.0)
+        );
     }
 
     #[test]
-    fn cross(){
+    fn cross() {
         assert_eq!(
-            Direction(Vec3(1.0,0.0,0.0)).cross(&Direction(Vec3(0.0,1.0,0.0))),
-            Direction(Vec3(0.0,0.0,1.0)));
+            Direction(Vec3(1.0, 0.0, 0.0)).cross(&Direction(Vec3(0.0, 1.0, 0.0))),
+            Direction(Vec3(0.0, 0.0, 1.0))
+        );
     }
 
     #[test]
-    fn reflect(){
+    fn reflect() {
         assert_eq!(
-            Direction(Vec3(1.0,1.0,0.0)).reflect(&Direction(Vec3(0.0,1.0,0.0))),
-            Direction(Vec3(1.0,-1.0,0.0)));
+            Direction(Vec3(1.0, 1.0, 0.0)).reflect(&Direction(Vec3(0.0, 1.0, 0.0))),
+            Direction(Vec3(1.0, -1.0, 0.0))
+        );
     }
 }

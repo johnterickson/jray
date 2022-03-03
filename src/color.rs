@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, MulAssign, AddAssign};
+use std::ops::{Add, AddAssign, Mul, MulAssign};
 
 #[derive(Copy, Clone)]
 pub struct Color(pub f64, pub f64, pub f64);
@@ -10,11 +10,11 @@ pub const WHITE: Color = Color(1.0, 1.0, 1.0);
 pub const BLACK: Color = Color(0.0, 0.0, 0.0);
 
 impl Color {
-    pub fn to_rgb(&self) -> [u8;3] {
+    pub fn to_rgb(&self) -> [u8; 3] {
         [
-            (256.0*self.0).clamp(0.0, 255.0) as u8,
-            (256.0*self.1).clamp(0.0, 255.0) as u8,
-            (256.0*self.2).clamp(0.0, 255.0) as u8,
+            (256.0 * self.0).clamp(0.0, 255.0) as u8,
+            (256.0 * self.1).clamp(0.0, 255.0) as u8,
+            (256.0 * self.2).clamp(0.0, 255.0) as u8,
         ]
     }
 }

@@ -7,7 +7,6 @@ use color::*;
 mod sphere;
 use sphere::*;
 
-
 #[derive(Copy, Clone)]
 pub struct Material {
     pub diffuse_color: Color,
@@ -59,7 +58,7 @@ impl Scene {
     fn render_ray(&self, ray: &Ray) -> Color {
         let mut color = BLACK;
         if let Some(i) = self.closest_intersection(&ray) {
-            color = color + Color(0.05,0.05,0.05); // ambient
+            color = color + Color(0.05, 0.05, 0.05); // ambient
 
             let slightly_off_surface = Point(i.point.0 + i.normal.0 * 0.00001);
             for l in &self.lights {
@@ -72,10 +71,7 @@ impl Scene {
                 let apparent_brightness = l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
-                let diffuse = apparent_brightness
-                    * i.normal
-                        .dot(&light_dir)
-                        .clamp(0.0, 1.0);
+                let diffuse = apparent_brightness * i.normal.dot(&light_dir).clamp(0.0, 1.0);
                 assert!(diffuse >= 0.0);
                 let light_reflect = light_dir.reflect(&i.normal);
                 let specular = apparent_brightness
@@ -85,7 +81,8 @@ impl Scene {
                         .powf(i.material.shininess);
                 assert!(specular >= 0.0);
 
-                let c = l.color * (diffuse * i.material.diffuse_color + specular * i.material.specular_color);
+                let c = l.color
+                    * (diffuse * i.material.diffuse_color + specular * i.material.specular_color);
                 assert!(c.0 >= 0.0);
                 assert!(c.1 >= 0.0);
                 assert!(c.2 >= 0.0);
@@ -120,8 +117,9 @@ impl Scene {
                     let y = yy + y as f64;
                     let radians_x = (x - center_x) / (self.imgx as f64) * camera_w_fov_radians;
                     let radians_y = (center_y - y) / (self.imgy as f64) * caemra_h_fov_radians;
-                    let pixel_dir =
-                        self.camera.ray.1 .0 + camera_right.0 * radians_x + self.camera.up.0 * radians_y;
+                    let pixel_dir = self.camera.ray.1 .0
+                        + camera_right.0 * radians_x
+                        + self.camera.up.0 * radians_y;
                     let pixel_dir = Direction(pixel_dir.normalized());
                     let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
 
@@ -131,7 +129,7 @@ impl Scene {
             }
 
             color *= 1.0 / count as f64;
-            
+
             *pixel = image::Rgb(color.to_rgb());
         }
 
