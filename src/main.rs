@@ -18,8 +18,9 @@ pub struct Material {
 }
 
 struct Light {
-    pub position: Point,
+    pub point: Point,
     pub color: Color,
+    pub radius: f64, 
     pub intensity: f64,
 }
 
@@ -101,6 +102,27 @@ impl Scene {
         closest
     }
 
+    fn light_positions(center_ray: &Ray, light_radius: f64, count: usize) -> Vec<Point> {
+        let mut positions = Vec::with_capacity(count);
+        positions.push(center_ray.0);
+        if light_radius > 0.0 {
+            let up = Direction(Vec3(0.0, 0.0, 1.0));
+            let right = center_ray.1.cross(&up).normalized();
+
+            let revolutions_in_spiral = 2.0;
+            
+            for i in 0..count {
+                let scaler = (i as f64) / (count as f64);
+                let theta = revolutions_in_spiral * scaler * 2.0 * std::f64::consts::PI;
+                let spiral_radius = scaler * light_radius;
+                let up = spiral_radius * up;
+                let right = spiral_radius * right;
+                positions.push(center_ray.0 + theta.cos() * right + theta.sin() * up);
+            }
+        }
+        positions
+    }
+
     fn render_ray(&self, ray: &Ray) -> Color {
         let mut color = BLACK;
         if let Some( (_, i)) = self.closest_intersection(&ray) {
@@ -110,22 +132,15 @@ impl Scene {
             for l in &self.lights {
                 let mut shaded = 0;
                 let mut total = 0;
-                for xx in [-0.02, 0.0, 0.02] {
-                    for yy in [-0.02, 0.0, 0.02] {
-                        for zz in [-0.02, 0.0, 0.02] {
-                            let mut l_pos = l.position;
-                            l_pos.0.0 += xx;
-                            l_pos.0.1 += yy;
-                            l_pos.0.2 += zz;
-
-                            let light_dir = l_pos - i.point;
-                            let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
-                            if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
-                                shaded += 1;
-                            }
-                            total += 1;
-                        }
+                let center_ray = Ray(l.point, i.point - l.point);
+                let light_positions = Self::light_positions(&center_ray, l.radius, 20);
+                for light_position in light_positions {
+                    let light_dir = light_position - i.point;
+                    let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
+                    if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
+                        shaded += 1;
                     }
+                    total += 1;
                 }
 
                 if shaded == total {
@@ -133,7 +148,7 @@ impl Scene {
                 }
 
                 let unblocked = 1.0 - shaded as f64 / total as f64;
-                let light_dir = l.position - i.point;
+                let light_dir = l.point - i.point;
                 let light_distance = light_dir.0.magnitude();
                 let apparent_brightness = unblocked * l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
@@ -173,7 +188,7 @@ impl Scene {
         let center_x = self.imgx as f64 / 2.0;
         let center_y = self.imgy as f64 / 2.0;
 
-        let aa = AntiAliasing::create(1);
+        let aa = AntiAliasing::create(2);
 
         // Iterate over the coordinates and pixels of the image
         let mut pixels: Vec<_> = imgbuf.enumerate_pixels_mut().collect();
@@ -253,14 +268,16 @@ fn main() {
 
     let lights = vec![
         Light {
-            position: Point(Vec3(-2.0, 1.0, 0.7)),
+            point: Point(Vec3(-2.0, 1.0, 0.7)),
             color: WHITE,
             intensity: 0.9,
+            radius: 0.1,
         },
         Light {
-            position: Point(Vec3(-2.0, -2.0, 2.0)),
+            point: Point(Vec3(-2.0, -2.0, 2.0)),
             color: WHITE,
             intensity: 0.7,
+            radius: 0.05,
         },
     ];
 

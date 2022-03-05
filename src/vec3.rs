@@ -75,8 +75,41 @@ impl Mul<f64> for Vec3 {
     }
 }
 
+impl Mul<Vec3> for f64 {
+    type Output = Vec3;
+    fn mul(self, rhs: Vec3) -> Vec3 {
+        Vec3(
+            self * rhs.0,
+            self * rhs.1,
+            self * rhs.2,
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Point(pub Vec3);
+
+impl Point {
+    pub const fn origin() -> Point {
+        Point(Vec3(0.0,0.0,0.0))
+    }
+}
+
+impl Add<Direction> for Point {
+    type Output = Point;
+
+    fn add(self, rhs: Direction) -> Self::Output {
+        Point(self.0 + rhs.0)
+    }
+}
+
+impl Sub<Direction> for Point {
+    type Output = Point;
+
+    fn sub(self, rhs: Direction) -> Self::Output {
+        Point(self.0 - rhs.0)
+    }
+}
 
 impl Sub for Point {
     type Output = Direction;
@@ -90,6 +123,10 @@ impl Sub for Point {
 pub struct Direction(pub Vec3);
 
 impl Direction {
+    pub const fn none() -> Self {
+        Direction(Vec3(0.0,0.0,0.0))
+    }
+
     pub fn dot(&self, rhs: &Self) -> f64 {
         self.0 .0 * rhs.0 .0 + self.0 .1 * rhs.0 .1 + self.0 .2 * rhs.0 .2
     }
@@ -117,6 +154,38 @@ impl Direction {
     pub fn normalized(mut self) -> Self {
         self.normalize();
         self
+    }
+}
+
+impl Add<Direction> for Direction {
+    type Output = Self;
+
+    fn add(self, rhs: Direction) -> Self::Output {
+        Direction(self.0 + rhs.0)
+    }
+}
+
+impl Sub<Direction> for Direction {
+    type Output = Self;
+
+    fn sub(self, rhs: Direction) -> Self::Output {
+        Direction(self.0 + rhs.0)
+    }
+}
+
+impl Mul<f64> for Direction {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Direction(rhs * self.0)
+    }
+}
+
+impl Mul<Direction> for f64 {
+    type Output = Direction;
+
+    fn mul(self, rhs: Direction) -> Self::Output {
+        Direction(rhs.0 * self)
     }
 }
 
