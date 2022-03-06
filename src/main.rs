@@ -22,7 +22,7 @@ pub struct Material {
 struct Light {
     pub point: Point,
     pub color: Color,
-    pub radius: f64, 
+    pub radius: f64,
     pub intensity: f64,
 }
 
@@ -34,14 +34,8 @@ pub struct Intersection {
 }
 
 enum Shape {
-    Sphere{
-        center: Point, 
-        radius: f64,
-    },
-    Plane {
-        point: Point,
-        normal: Direction,
-    }
+    Sphere { center: Point, radius: f64 },
+    Plane { point: Point, normal: Direction },
 }
 
 impl Shape {
@@ -66,16 +60,14 @@ impl Shape {
                     return None;
                 }
 
-                let point = l0 + l*distance;
+                let point = l0 + l * distance;
                 Some(Intersection {
                     distance,
                     point,
                     surface_normal: *normal,
                 })
-            },
-            Shape::Sphere { center, radius } => {
-                sphere::find_intersection(*center, *radius, r)
-            },
+            }
+            Shape::Sphere { center, radius } => sphere::find_intersection(*center, *radius, r),
         }
     }
 }
@@ -100,12 +92,13 @@ struct Scene {
 }
 
 impl Scene {
-    fn closest_intersection(&self, ray: &Ray) -> Option<(&Object,Intersection)> {
-        let intersections = self.objects.iter()
-            .filter_map(|o| o.shape.find_intersection(&ray).map(|i| (o,i)));
-        let closest = intersections.min_by(|(_,i1), (_,i2)| {
-            i1.distance.partial_cmp(&i2.distance).unwrap()
-        });
+    fn closest_intersection(&self, ray: &Ray) -> Option<(&Object, Intersection)> {
+        let intersections = self
+            .objects
+            .iter()
+            .filter_map(|o| o.shape.find_intersection(&ray).map(|i| (o, i)));
+        let closest =
+            intersections.min_by(|(_, i1), (_, i2)| i1.distance.partial_cmp(&i2.distance).unwrap());
         if let Some((_, i)) = &closest {
             assert!(i.distance >= 0.0);
         }
@@ -120,7 +113,7 @@ impl Scene {
             let right = center_ray.1.cross(&up).normalized();
 
             let revolutions_in_spiral = 2.0;
-            
+
             for i in 0..count {
                 let scaler = (i as f64) / (count as f64);
                 let theta = revolutions_in_spiral * scaler * 2.0 * std::f64::consts::PI;
@@ -135,7 +128,7 @@ impl Scene {
 
     fn render_ray(&self, ray: &Ray) -> Color {
         let mut color = BLACK;
-        if let Some( (object, i)) = self.closest_intersection(&ray) {
+        if let Some((object, i)) = self.closest_intersection(&ray) {
             color += Color(0.1, 0.1, 0.1); // ambient
 
             let slightly_off_surface = Point(i.point.0 + i.surface_normal.0 * 0.00001);
@@ -148,7 +141,8 @@ impl Scene {
                     let light_dir = light_position - i.point;
                     let light_distance = light_dir.0.magnitude();
                     let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
-                    if let Some((_shadow_obj, shadow_i)) = self.closest_intersection(&ray_to_light) {
+                    if let Some((_shadow_obj, shadow_i)) = self.closest_intersection(&ray_to_light)
+                    {
                         // intersection with shadow object happens ...
                         if shadow_i.distance > light_distance {
                             // ... behind the light
@@ -170,18 +164,19 @@ impl Scene {
                 let apparent_brightness = unblocked * l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
-                let diffuse = apparent_brightness * i.surface_normal.dot(&light_dir).clamp(0.0, 1.0);
+                let diffuse = i.surface_normal.dot(&light_dir).clamp(0.0, 1.0);
                 assert!(diffuse >= 0.0);
                 let light_reflect = light_dir.reflect(&i.surface_normal);
-                let specular = apparent_brightness
-                    * light_reflect
-                        .dot(&ray.1)
-                        .clamp(0.0, 1.0)
-                        .powf(object.material.shininess);
+                let specular = light_reflect
+                    .dot(&ray.1)
+                    .clamp(0.0, 1.0)
+                    .powf(object.material.shininess);
                 assert!(specular >= 0.0);
 
                 let c = l.color
-                    * (diffuse * object.material.diffuse_color + specular * object.material.specular_color);
+                    * apparent_brightness
+                    * (diffuse * object.material.diffuse_color
+                        + specular * object.material.specular_color);
                 assert!(c.0 >= 0.0);
                 assert!(c.1 >= 0.0);
                 assert!(c.2 >= 0.0);
@@ -209,10 +204,10 @@ impl Scene {
 
         // Iterate over the coordinates and pixels of the image
         let mut pixels: Vec<_> = imgbuf.enumerate_pixels_mut().collect();
-        pixels//.iter_mut()
-              //.par_iter_mut()
-              .iter_mut()
-              .for_each(|(x, y, pixel)| {
+        pixels //.iter_mut()
+            .par_iter_mut()
+            // .iter_mut()
+            .for_each(|(x, y, pixel)| {
                 let mut color = BLACK;
 
                 let mut count = 0;
@@ -221,7 +216,7 @@ impl Scene {
                     let y = yy + *y as f64;
                     let radians_x = (x - center_x) / (self.imgx as f64) * camera_w_fov_radians;
                     let radians_y = (center_y - y) / (self.imgy as f64) * caemra_h_fov_radians;
-                    let pixel_dir = self.camera.ray.1.0
+                    let pixel_dir = self.camera.ray.1 .0
                         + camera_right.0 * radians_x
                         + self.camera.up.0 * radians_y;
                     let pixel_dir = Direction(pixel_dir.normalized());
@@ -230,11 +225,11 @@ impl Scene {
                     color += self.render_ray(&pixel_ray);
                     count += 1;
                 }
-    
+
                 color *= 1.0 / count as f64;
-    
+
                 **pixel = image::Rgb(color.to_rgb());
-              });
+            });
 
         imgbuf.save(path).unwrap();
     }
@@ -281,7 +276,7 @@ fn main() {
         Object {
             shape: Shape::Plane {
                 point: Point(Vec3(0.0, 0.0, -5.0)),
-                normal: Direction(Vec3(0.0,0.0,1.0)),
+                normal: Direction(Vec3(0.0, 0.0, 1.0)),
             },
             material: Material {
                 diffuse_color: WHITE,
@@ -289,7 +284,7 @@ fn main() {
                 shininess: 50.0,
                 opacity: 1.0,
             },
-        }
+        },
     ];
 
     let lights = vec![
@@ -299,12 +294,12 @@ fn main() {
             intensity: 0.9,
             radius: 0.05,
         },
-        // Light {
-        //     point: Point(Vec3(-2.0, -2.0, 2.0)),
-        //     color: WHITE,
-        //     intensity: 0.7,
-        //     radius: 0.05,
-        // },
+        Light {
+            point: Point(Vec3(-2.0, -2.0, 2.0)),
+            color: WHITE,
+            intensity: 0.7,
+            radius: 0.05,
+        },
     ];
 
     let scene = Scene {

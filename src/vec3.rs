@@ -1,4 +1,7 @@
-use std::{ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign}, fmt::Debug};
+use std::{
+    fmt::Debug,
+    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
+};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vec3(pub f64, pub f64, pub f64);
@@ -84,11 +87,7 @@ impl Mul<f64> for Vec3 {
 impl Mul<Vec3> for f64 {
     type Output = Vec3;
     fn mul(self, rhs: Vec3) -> Vec3 {
-        Vec3(
-            self * rhs.0,
-            self * rhs.1,
-            self * rhs.2,
-        )
+        Vec3(self * rhs.0, self * rhs.1, self * rhs.2)
     }
 }
 
@@ -97,7 +96,7 @@ pub struct Point(pub Vec3);
 
 impl Point {
     pub const fn origin() -> Point {
-        Point(Vec3(0.0,0.0,0.0))
+        Point(Vec3(0.0, 0.0, 0.0))
     }
 }
 
@@ -142,7 +141,7 @@ impl Debug for Direction {
 
 impl Direction {
     pub const fn none() -> Self {
-        Direction(Vec3(0.0,0.0,0.0))
+        Direction(Vec3(0.0, 0.0, 0.0))
     }
 
     pub fn dot(&self, rhs: &Self) -> f64 {
