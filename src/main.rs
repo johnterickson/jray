@@ -3,11 +3,13 @@ use rayon::prelude::*;
 mod vec3;
 use vec3::*;
 
+mod aa;
+use aa::*;
+
 mod color;
 use color::*;
 
 mod sphere;
-use sphere::*;
 
 #[derive(Copy, Clone)]
 pub struct Material {
@@ -24,27 +26,39 @@ struct Light {
     pub intensity: f64,
 }
 
-struct Intersection {
+pub struct Intersection {
     pub distance: f64,
     pub point: Point,
-    pub normal: Direction,
-    pub material: Material,
+    pub surface_normal: Direction,
 }
 
 enum Shape {
-    Sphere(Sphere)
+    Sphere{
+        center: Point, 
+        radius: f64,
+    },
+    Plane {
+        point: Point,
+        normal: Direction,
+    }
 }
 
-impl Intersect for Shape {
+impl Shape {
     fn find_intersection(&self, r: &Ray) -> Option<Intersection> {
         match self {
-            Shape::Sphere(s) => s.find_intersection(r)
+            Shape::Plane { point, normal } => {
+                todo!();
+            },
+            Shape::Sphere { center, radius } => {
+                sphere::find_intersection(*center, *radius, r)
+            },
         }
     }
 }
 
-trait Intersect {
-    fn find_intersection(&self, r: &Ray) -> Option<Intersection>;
+struct Object {
+    pub material: Material,
+    pub shape: Shape,
 }
 
 struct Camera {
@@ -53,46 +67,18 @@ struct Camera {
     w_fov_degrees: f64,
 }
 
-struct AntiAliasing(Vec<(f64,f64)>);
-impl AntiAliasing {
-    fn create(n: u8) -> AntiAliasing {
-        let mut offsets = Vec::with_capacity(n as usize * n as usize);
-        offsets.push((0.0, 0.0));
-
-        let n: i8 = n.try_into().unwrap();
-
-        let delta = 1.0 / (n as f64 + 1.0);
-        for x in 1..n {
-            let x = x as f64;
-            for y in 1..n {
-                let y = y as f64;
-                offsets.push((x * delta, y * delta));
-                offsets.push((x * delta, -1.0 *y * delta));
-                offsets.push((-1.0 * x * delta, y * delta));
-                offsets.push((-1.0 * x * delta, -1.0 * y * delta));
-            }
-        }
-
-        AntiAliasing(offsets)
-    }
-
-    fn offsets(&self) -> &[(f64,f64)] {
-        self.0.as_slice()
-    }
-}
-
 struct Scene {
     camera: Camera,
     imgx: u32,
     imgy: u32,
-    shapes: Vec<Shape>,
+    objects: Vec<Object>,
     lights: Vec<Light>,
 }
 
 impl Scene {
-    fn closest_intersection(&self, ray: &Ray) -> Option<(&Shape,Intersection)> {
-        let intersections = self.shapes.iter()
-            .filter_map(|s| s.find_intersection(&ray).map(|i| (s,i)));
+    fn closest_intersection(&self, ray: &Ray) -> Option<(&Object,Intersection)> {
+        let intersections = self.objects.iter()
+            .filter_map(|o| o.shape.find_intersection(&ray).map(|i| (o,i)));
         let closest = intersections.min_by(|(_,i1), (_,i2)| {
             i1.distance.partial_cmp(&i2.distance).unwrap()
         });
@@ -125,10 +111,10 @@ impl Scene {
 
     fn render_ray(&self, ray: &Ray) -> Color {
         let mut color = BLACK;
-        if let Some( (_, i)) = self.closest_intersection(&ray) {
+        if let Some( (object, i)) = self.closest_intersection(&ray) {
             color += Color(0.1, 0.1, 0.1); // ambient
 
-            let slightly_off_surface = Point(i.point.0 + i.normal.0 * 0.00001);
+            let slightly_off_surface = Point(i.point.0 + i.surface_normal.0 * 0.00001);
             for l in &self.lights {
                 let mut shaded = 0;
                 let mut total = 0;
@@ -153,18 +139,18 @@ impl Scene {
                 let apparent_brightness = unblocked * l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
-                let diffuse = apparent_brightness * i.normal.dot(&light_dir).clamp(0.0, 1.0);
+                let diffuse = apparent_brightness * i.surface_normal.dot(&light_dir).clamp(0.0, 1.0);
                 assert!(diffuse >= 0.0);
-                let light_reflect = light_dir.reflect(&i.normal);
+                let light_reflect = light_dir.reflect(&i.surface_normal);
                 let specular = apparent_brightness
                     * light_reflect
                         .dot(&ray.1)
                         .clamp(0.0, 1.0)
-                        .powf(i.material.shininess);
+                        .powf(object.material.shininess);
                 assert!(specular >= 0.0);
 
                 let c = l.color
-                    * (diffuse * i.material.diffuse_color + specular * i.material.specular_color);
+                    * (diffuse * object.material.diffuse_color + specular * object.material.specular_color);
                 assert!(c.0 >= 0.0);
                 assert!(c.1 >= 0.0);
                 assert!(c.2 >= 0.0);
@@ -223,47 +209,55 @@ impl Scene {
 }
 
 fn main() {
-    let shapes: Vec<Shape> = vec![
-        Shape::Sphere(Sphere(
-            Point(Vec3(0.0, 0.0, 0.0)),
-            0.7,
-            Material {
+    let shapes: Vec<_> = vec![
+        Object {
+            shape: Shape::Sphere {
+                center: Point(Vec3(0.0, 0.0, 0.0)),
+                radius: 0.7,
+            },
+            material: Material {
                 diffuse_color: BLUE,
                 specular_color: 1.0 * WHITE,
                 shininess: 50.0,
                 opacity: 1.0,
             },
-        )),
-        Shape::Sphere(Sphere(
-            Point(Vec3(-0.7, 0.7, -1.0)),
-            1.0,
-            Material {
+        },
+        Object {
+            shape: Shape::Sphere {
+                center: Point(Vec3(-0.7, 0.7, -1.0)),
+                radius: 1.0,
+            },
+            material: Material {
                 diffuse_color: RED,
                 specular_color: 0.0 * WHITE,
                 shininess: 50.0,
                 opacity: 0.1,
             },
-        )),
-        Shape::Sphere(Sphere(
-            Point(Vec3(1.0, -1.0, 1.0)),
-            0.5,
-            Material {
+        },
+        Object {
+            shape: Shape::Sphere {
+                center: Point(Vec3(1.0, -1.0, 1.0)),
+                radius: 0.5,
+            },
+            material: Material {
                 diffuse_color: GREEN,
                 specular_color: 0.5 * WHITE,
                 shininess: 50.0,
                 opacity: 1.0,
             },
-        )),
-        Shape::Sphere(Sphere(
-            Point(Vec3(10.0, 0.0, -102.5)),
-            100.0,
-            Material {
+        },
+        Object {
+            shape: Shape::Sphere {
+                center: Point(Vec3(10.0, 0.0, -102.5)),
+                radius: 100.0,
+            },
+            material: Material {
                 diffuse_color: WHITE,
                 specular_color: 0.5 * WHITE,
                 shininess: 50.0,
                 opacity: 1.0,
             },
-        )),
+        }
     ];
 
     let lights = vec![
@@ -271,14 +265,14 @@ fn main() {
             point: Point(Vec3(-2.0, 1.0, 0.7)),
             color: WHITE,
             intensity: 0.9,
-            radius: 0.1,
-        },
-        Light {
-            point: Point(Vec3(-2.0, -2.0, 2.0)),
-            color: WHITE,
-            intensity: 0.7,
             radius: 0.05,
         },
+        // Light {
+        //     point: Point(Vec3(-2.0, -2.0, 2.0)),
+        //     color: WHITE,
+        //     intensity: 0.7,
+        //     radius: 0.05,
+        // },
     ];
 
     let scene = Scene {
@@ -289,7 +283,7 @@ fn main() {
         },
         imgx: 1000,
         imgy: 1000,
-        shapes,
+        objects: shapes,
         lights,
     };
 
