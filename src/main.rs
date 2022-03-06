@@ -26,6 +26,7 @@ struct Light {
     pub intensity: f64,
 }
 
+#[derive(Debug)]
 pub struct Intersection {
     pub distance: f64,
     pub point: Point,
@@ -47,7 +48,30 @@ impl Shape {
     fn find_intersection(&self, r: &Ray) -> Option<Intersection> {
         match self {
             Shape::Plane { point, normal } => {
-                todo!();
+                // https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection#Algebraic_form
+                let p0 = *point;
+                let n = normal;
+                let l0 = r.0;
+                let l = r.1;
+
+                let l_dot_n = l.dot(n);
+
+                if l_dot_n == 0.0 {
+                    return None;
+                }
+
+                let distance = (p0 - l0).dot(n) / l_dot_n;
+
+                if distance <= 0.0 {
+                    return None;
+                }
+
+                let point = l0 + l*distance;
+                Some(Intersection {
+                    distance,
+                    point,
+                    surface_normal: *normal,
+                })
             },
             Shape::Sphere { center, radius } => {
                 sphere::find_intersection(*center, *radius, r)
@@ -119,12 +143,19 @@ impl Scene {
                 let mut shaded = 0;
                 let mut total = 0;
                 let center_ray = Ray(l.point, i.point - l.point);
-                let light_positions = Self::light_positions(&center_ray, l.radius, 20);
+                let light_positions = Self::light_positions(&center_ray, l.radius, 1);
                 for light_position in light_positions {
                     let light_dir = light_position - i.point;
+                    let light_distance = light_dir.0.magnitude();
                     let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
-                    if let Some(_shadow) = self.closest_intersection(&ray_to_light) {
-                        shaded += 1;
+                    if let Some((_shadow_obj, shadow_i)) = self.closest_intersection(&ray_to_light) {
+                        // intersection with shadow object happens ...
+                        if shadow_i.distance > light_distance {
+                            // ... behind the light
+                        } else {
+                            // ... between the light and the target
+                            shaded += 1;
+                        }
                     }
                     total += 1;
                 }
@@ -179,7 +210,8 @@ impl Scene {
         // Iterate over the coordinates and pixels of the image
         let mut pixels: Vec<_> = imgbuf.enumerate_pixels_mut().collect();
         pixels//.iter_mut()
-              .par_iter_mut()
+              //.par_iter_mut()
+              .iter_mut()
               .for_each(|(x, y, pixel)| {
                 let mut color = BLACK;
 
@@ -247,9 +279,9 @@ fn main() {
             },
         },
         Object {
-            shape: Shape::Sphere {
-                center: Point(Vec3(10.0, 0.0, -102.5)),
-                radius: 100.0,
+            shape: Shape::Plane {
+                point: Point(Vec3(0.0, 0.0, -5.0)),
+                normal: Direction(Vec3(0.0,0.0,1.0)),
             },
             material: Material {
                 diffuse_color: WHITE,

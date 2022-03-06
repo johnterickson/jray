@@ -1,7 +1,13 @@
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::{ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign}, fmt::Debug};
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vec3(pub f64, pub f64, pub f64);
+
+impl Debug for Vec3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{:.2}, {:.2}, {:.2}]", self.0, self.1, self.2)
+    }
+}
 
 impl Vec3 {
     pub fn magnitude(&self) -> f64 {
@@ -86,12 +92,18 @@ impl Mul<Vec3> for f64 {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Point(pub Vec3);
 
 impl Point {
     pub const fn origin() -> Point {
         Point(Vec3(0.0,0.0,0.0))
+    }
+}
+
+impl Debug for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Point:{:?}", self.0)
     }
 }
 
@@ -119,8 +131,14 @@ impl Sub for Point {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Direction(pub Vec3);
+
+impl Debug for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Direction:{:?}", self.0)
+    }
+}
 
 impl Direction {
     pub const fn none() -> Self {
