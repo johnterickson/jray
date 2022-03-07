@@ -11,12 +11,12 @@ use color::*;
 
 mod sphere;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Material {
     pub diffuse_color: Color,
     pub specular_color: Color,
     pub shininess: f64,
-    pub opacity: f64,
+    pub reflectivity: f64,
 }
 
 struct Light {
@@ -33,6 +33,8 @@ pub struct Intersection {
     pub surface_normal: Direction,
 }
 
+
+#[derive(Debug)]
 enum Shape {
     Sphere { center: Point, radius: f64 },
     Plane { point: Point, normal: Direction },
@@ -72,6 +74,7 @@ impl Shape {
     }
 }
 
+#[derive(Debug)]
 struct Object {
     pub material: Material,
     pub shape: Shape,
@@ -126,12 +129,20 @@ impl Scene {
         positions
     }
 
-    fn render_ray(&self, ray: &Ray) -> Color {
+    fn render_ray(&self, ray: &Ray, mut recursion_limit: usize) -> Color {
         let mut color = BLACK;
-        if let Some((object, i)) = self.closest_intersection(&ray) {
-            color += Color(0.1, 0.1, 0.1); // ambient
 
-            let slightly_off_surface = Point(i.point.0 + i.surface_normal.0 * 0.00001);
+        if recursion_limit == 0 {
+            return color;
+        }
+
+        recursion_limit -= 1;
+
+        if let Some((object, i)) = self.closest_intersection(&ray) {
+            color += Color(0.0, 0.0, 0.0); // ambient
+
+            // lighting and shadows
+            let slightly_off_surface = Point(i.point.0 + i.surface_normal.0 * 0.001);
             for l in &self.lights {
                 let mut shaded = 0;
                 let mut total = 0;
@@ -159,14 +170,16 @@ impl Scene {
                 }
 
                 let unblocked = 1.0 - shaded as f64 / total as f64;
-                let light_dir = l.point - i.point;
+                let light_dir = i.point - l.point;
                 let light_distance = light_dir.0.magnitude();
                 let apparent_brightness = unblocked * l.intensity / light_distance * light_distance;
                 assert!(apparent_brightness >= 0.0);
                 let light_dir = light_dir.normalized();
-                let diffuse = i.surface_normal.dot(&light_dir).clamp(0.0, 1.0);
+                let dir_to_light = -1.0 * light_dir;
+                let diffuse = i.surface_normal.dot(&dir_to_light).clamp(0.0, 1.0);
                 assert!(diffuse >= 0.0);
                 let light_reflect = light_dir.reflect(&i.surface_normal);
+                let light_reflect = -1.0 * light_reflect;
                 let specular = light_reflect
                     .dot(&ray.1)
                     .clamp(0.0, 1.0)
@@ -181,6 +194,22 @@ impl Scene {
                 assert!(c.1 >= 0.0);
                 assert!(c.2 >= 0.0);
                 color += c;
+            }
+        
+            // reflection
+            if object.material.reflectivity > 0.0 {
+                let reflected_dir = ray.1.reflect(&i.surface_normal).normalized();
+                let reflected_ray = Ray(slightly_off_surface, reflected_dir);
+                let reflected_color = self.render_ray(&reflected_ray, recursion_limit);
+                if reflected_color != BLACK {
+                    // dbg!(&ray);
+                    // dbg!(&object);
+                    // dbg!(&i);
+                    // dbg!(reflected_dir);
+                    // dbg!(reflected_color);
+                    color += object.material.reflectivity * reflected_color;
+                    // assert!(false);
+                }
             }
         }
 
@@ -222,7 +251,7 @@ impl Scene {
                     let pixel_dir = Direction(pixel_dir.normalized());
                     let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
 
-                    color += self.render_ray(&pixel_ray);
+                    color += self.render_ray(&pixel_ray, 5);
                     count += 1;
                 }
 
@@ -246,7 +275,7 @@ fn main() {
                 diffuse_color: BLUE,
                 specular_color: 1.0 * WHITE,
                 shininess: 50.0,
-                opacity: 1.0,
+                reflectivity: 0.0,
             },
         },
         Object {
@@ -258,7 +287,7 @@ fn main() {
                 diffuse_color: RED,
                 specular_color: 0.0 * WHITE,
                 shininess: 50.0,
-                opacity: 0.1,
+                reflectivity: 0.0,
             },
         },
         Object {
@@ -270,28 +299,88 @@ fn main() {
                 diffuse_color: GREEN,
                 specular_color: 0.5 * WHITE,
                 shininess: 50.0,
-                opacity: 1.0,
+                reflectivity: 0.0,
             },
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(0.0, 0.0, -5.0)),
+                point: Point(Vec3(0.0, 0.0, -10.0)),
                 normal: Direction(Vec3(0.0, 0.0, 1.0)),
             },
             material: Material {
-                diffuse_color: WHITE,
-                specular_color: 0.5 * WHITE,
+                diffuse_color: 0.1 * WHITE,
+                specular_color: BLACK,
                 shininess: 50.0,
-                opacity: 1.0,
+                reflectivity: 0.7,
             },
         },
+        Object {
+            shape: Shape::Plane {
+                point: Point(Vec3(0.0, 0.0, 10.0)),
+                normal: Direction(Vec3(0.0, 0.0, -1.0)),
+            },
+            material: Material {
+                diffuse_color: 0.1 * WHITE,
+                specular_color: 0.1*WHITE,
+                shininess: 50.0,
+                reflectivity: 0.7,
+            },
+        },
+        Object {
+            shape: Shape::Plane {
+                point: Point(Vec3(10.0, 0.0, 0.0)),
+                normal: Direction(Vec3(-1.0, 0.0, 0.0)),
+            },
+            material: Material {
+                diffuse_color: 0.1 * WHITE,
+                specular_color: 0.1*WHITE,
+                shininess: 50.0,
+                reflectivity: 0.7,
+            },
+        },
+        Object {
+            shape: Shape::Plane {
+                point: Point(Vec3(-10.0, 0.0, 0.0)),
+                normal: Direction(Vec3(1.0, 0.0, 0.0)),
+            },
+            material: Material {
+                diffuse_color: 0.1 * WHITE,
+                specular_color: 0.1*WHITE,
+                shininess: 50.0,
+                reflectivity: 0.7,
+            },
+        },
+        Object {
+            shape: Shape::Plane {
+                point: Point(Vec3(0.0, 10.0, 0.0)),
+                normal: Direction(Vec3(0.0, -1.0, 0.0)),
+            },
+            material: Material {
+                diffuse_color: 0.1 * WHITE,
+                specular_color: 0.1*WHITE,
+                shininess: 50.0,
+                reflectivity: 0.7,
+            },
+        },
+        Object {
+            shape: Shape::Plane {
+                point: Point(Vec3(0.0, -10.0, 0.0)),
+                normal: Direction(Vec3(0.0, 1.0, 0.0)),
+            },
+            material: Material {
+                diffuse_color: 0.1 * WHITE,
+                specular_color:0.5* WHITE,
+                shininess: 50.0,
+                reflectivity: 0.7,
+            },
+        }
     ];
 
     let lights = vec![
         Light {
             point: Point(Vec3(-2.0, 1.0, 0.7)),
             color: WHITE,
-            intensity: 0.9,
+            intensity: 0.6,
             radius: 0.05,
         },
         Light {
@@ -304,12 +393,12 @@ fn main() {
 
     let scene = Scene {
         camera: Camera {
-            ray: Ray::from_points(Point(Vec3(-10.0, 0.0, 0.0)), Point(Vec3(0.0, 0.0, 0.0))),
+            ray: Ray::from_points(Point(Vec3(-4.9, 3.0, 3.0)), Point(Vec3(0.0, 0.0, 0.0))),
             up: Direction(Vec3(0.0, 0.0, 1.0)),
-            w_fov_degrees: 50.0,
+            w_fov_degrees: 90.0,
         },
-        imgx: 1000,
-        imgy: 1000,
+        imgx: 800,
+        imgy: 800,
         objects: shapes,
         lights,
     };

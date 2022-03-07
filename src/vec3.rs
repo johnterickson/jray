@@ -157,8 +157,18 @@ impl Direction {
     }
 
     pub fn reflect(&self, normal: &Self) -> Self {
-        let r = self.dot(normal) * 2.0;
-        Direction(self.0 - (normal.0 * r))
+        *self - 2.0*(self.dot(normal))*normal
+    }
+
+    pub fn mirror(&self, normal: &Self) -> Self {
+        // https://mathworld.wolfram.com/Reflection.html
+        // dbg!(&self);
+        // dbg!(normal);
+        let xn = self.dot(normal) * normal;
+        // dbg!(xn);
+        let to_normal = xn - *self;
+        // dbg!(to_normal);
+        *self + 2.0 * to_normal
     }
 
     pub fn normalize(&mut self) -> () {
@@ -186,7 +196,7 @@ impl Sub<Direction> for Direction {
     type Output = Self;
 
     fn sub(self, rhs: Direction) -> Self::Output {
-        Direction(self.0 + rhs.0)
+        Direction(self.0 - rhs.0)
     }
 }
 
@@ -202,7 +212,15 @@ impl Mul<Direction> for f64 {
     type Output = Direction;
 
     fn mul(self, rhs: Direction) -> Self::Output {
-        Direction(rhs.0 * self)
+        self * (&rhs)
+    }
+}
+
+impl Mul<&Direction> for f64 {
+    type Output = Direction;
+
+    fn mul(self, rhs: &Direction) -> Self::Output {
+        Direction(self * (rhs.0))
     }
 }
 
@@ -236,10 +254,28 @@ mod test {
     }
 
     #[test]
+    fn mirror() {
+        assert_eq!(
+            Direction(Vec3(-1.0, 0.0, 0.0)).normalized().mirror(&Direction(Vec3(0.0, 1.0, 0.0))),
+            Direction(Vec3(1.0, 0.0, 0.0)).normalized()
+        );
+
+        assert_eq!(
+            Direction(Vec3(-1.0, -1.0, 1.0)).normalized().mirror(&Direction(Vec3(0.0, 0.0, 1.0))),
+            Direction(Vec3(1.0, 1.0, 1.0)).normalized()
+        );
+    }
+
+    #[test]
     fn reflect() {
         assert_eq!(
-            Direction(Vec3(1.0, 1.0, 0.0)).reflect(&Direction(Vec3(0.0, 1.0, 0.0))),
-            Direction(Vec3(1.0, -1.0, 0.0))
+            Direction(Vec3(1.0, -1.0, 0.0)).normalized().reflect(&Direction(Vec3(0.0, 1.0, 0.0))),
+            Direction(Vec3(1.0, 1.0, 0.0)).normalized()
+        );
+
+        assert_eq!(
+            Direction(Vec3(1.0, 1.0, -1.0)).normalized().reflect(&Direction(Vec3(0.0, 0.0, 1.0))),
+            Direction(Vec3(1.0, 1.0, 1.0)).normalized()
         );
     }
 }

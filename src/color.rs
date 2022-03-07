@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Color(pub f64, pub f64, pub f64);
 
 pub const RED: Color = Color(1.0, 0.0, 0.0);
