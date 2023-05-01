@@ -4,24 +4,24 @@ use std::{
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub struct Vec3(pub f64, pub f64, pub f64);
+pub struct Vec3(pub [f64; 3]);
 
 impl Debug for Vec3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{:.2}, {:.2}, {:.2}]", self.0, self.1, self.2)
+        write!(f, "[{:.2}, {:.2}, {:.2}]", self.0[0], self.0[1], self.0[2])
     }
 }
 
 impl Vec3 {
     pub fn magnitude(&self) -> f64 {
-        (self.0 * self.0 + self.1 * self.1 + self.2 * self.2).sqrt()
+        (self.0[0] * self.0[0] + self.0[1] * self.0[1] + self.0[2] * self.0[2]).sqrt()
     }
 
     pub fn normalize(&mut self) -> () {
         let mag = self.magnitude();
-        self.0 /= mag;
-        self.1 /= mag;
-        self.2 /= mag;
+        self.0[0] /= mag;
+        self.0[1] /= mag;
+        self.0[2] /= mag;
     }
 
     pub fn normalized(mut self) -> Self {
@@ -32,9 +32,9 @@ impl Vec3 {
 
 impl AddAssign for Vec3 {
     fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0;
-        self.1 += rhs.1;
-        self.2 += rhs.2;
+        self.0[0] += rhs.0[0];
+        self.0[1] += rhs.0[1];
+        self.0[2] += rhs.0[2];
     }
 }
 
@@ -50,9 +50,9 @@ impl Add for Vec3 {
 
 impl SubAssign for Vec3 {
     fn sub_assign(&mut self, rhs: Self) {
-        self.0 -= rhs.0;
-        self.1 -= rhs.1;
-        self.2 -= rhs.2;
+        self.0[0] -= rhs.0[0];
+        self.0[1] -= rhs.0[1];
+        self.0[2] -= rhs.0[2];
     }
 }
 
@@ -68,9 +68,9 @@ impl Sub for Vec3 {
 
 impl MulAssign<f64> for Vec3 {
     fn mul_assign(&mut self, rhs: f64) {
-        self.0 *= rhs;
-        self.1 *= rhs;
-        self.2 *= rhs;
+        self.0[0] *= rhs;
+        self.0[1] *= rhs;
+        self.0[2] *= rhs;
     }
 }
 
@@ -87,7 +87,7 @@ impl Mul<f64> for Vec3 {
 impl Mul<Vec3> for f64 {
     type Output = Vec3;
     fn mul(self, rhs: Vec3) -> Vec3 {
-        Vec3(self * rhs.0, self * rhs.1, self * rhs.2)
+        Vec3([self * rhs.0[0], self * rhs.0[1], self * rhs.0[2]])
     }
 }
 
@@ -96,7 +96,7 @@ pub struct Point(pub Vec3);
 
 impl Point {
     pub const fn origin() -> Point {
-        Point(Vec3(0.0, 0.0, 0.0))
+        Point(Vec3([0.0, 0.0, 0.0]))
     }
 }
 
@@ -141,23 +141,23 @@ impl Debug for Direction {
 
 impl Direction {
     pub const fn none() -> Self {
-        Direction(Vec3(0.0, 0.0, 0.0))
+        Direction(Vec3([0.0, 0.0, 0.0]))
     }
 
     pub fn dot(&self, rhs: &Self) -> f64 {
-        self.0 .0 * rhs.0 .0 + self.0 .1 * rhs.0 .1 + self.0 .2 * rhs.0 .2
+        self.0.0[0] * rhs.0.0[0] + self.0.0[1] * rhs.0.0[1] + self.0.0[2] * rhs.0.0[2]
     }
 
     pub fn cross(&self, rhs: &Self) -> Self {
-        Direction(Vec3(
-            self.0 .1 * rhs.0 .2 - self.0 .2 * rhs.0 .1,
-            self.0 .2 * rhs.0 .0 - self.0 .0 * rhs.0 .2,
-            self.0 .0 * rhs.0 .1 - self.0 .1 * rhs.0 .0,
-        ))
+        Direction(Vec3([
+            self.0.0[1] * rhs.0.0[2] - self.0.0[2] * rhs.0.0[1],
+            self.0.0[2] * rhs.0.0[0] - self.0.0[0] * rhs.0.0[2],
+            self.0.0[0] * rhs.0.0[1] - self.0.0[1] * rhs.0.0[0],
+        ]))
     }
 
     pub fn reflect(&self, normal: &Self) -> Self {
-        *self - 2.0*(self.dot(normal))*normal
+        *self - 2.0 * (self.dot(normal)) * normal
     }
 
     pub fn mirror(&self, normal: &Self) -> Self {
@@ -173,9 +173,9 @@ impl Direction {
 
     pub fn normalize(&mut self) -> () {
         let mag = self.0.magnitude();
-        self.0 .0 /= mag;
-        self.0 .1 /= mag;
-        self.0 .2 /= mag;
+        self.0.0[0] /= mag;
+        self.0.0[1] /= mag;
+        self.0.0[2] /= mag;
     }
 
     pub fn normalized(mut self) -> Self {
@@ -240,42 +240,50 @@ mod test {
     #[test]
     fn add() {
         assert_eq!(
-            Vec3(1.0, 2.0, 3.0) + Vec3(4.0, 6.0, 9.0),
-            Vec3(5.0, 8.0, 12.0)
+            Vec3([1.0, 2.0, 3.0]) + Vec3([4.0, 6.0, 9.0]),
+            Vec3([5.0, 8.0, 12.0])
         );
     }
 
     #[test]
     fn cross() {
         assert_eq!(
-            Direction(Vec3(1.0, 0.0, 0.0)).cross(&Direction(Vec3(0.0, 1.0, 0.0))),
-            Direction(Vec3(0.0, 0.0, 1.0))
+            Direction(Vec3([1.0, 0.0, 0.0])).cross(&Direction(Vec3([0.0, 1.0, 0.0]))),
+            Direction(Vec3([0.0, 0.0, 1.0]))
         );
     }
 
     #[test]
     fn mirror() {
         assert_eq!(
-            Direction(Vec3(-1.0, 0.0, 0.0)).normalized().mirror(&Direction(Vec3(0.0, 1.0, 0.0))),
-            Direction(Vec3(1.0, 0.0, 0.0)).normalized()
+            Direction(Vec3([-1.0, 0.0, 0.0]))
+                .normalized()
+                .mirror(&Direction(Vec3([0.0, 1.0, 0.0]))),
+            Direction(Vec3([1.0, 0.0, 0.0])).normalized()
         );
 
         assert_eq!(
-            Direction(Vec3(-1.0, -1.0, 1.0)).normalized().mirror(&Direction(Vec3(0.0, 0.0, 1.0))),
-            Direction(Vec3(1.0, 1.0, 1.0)).normalized()
+            Direction(Vec3([-1.0, -1.0, 1.0]))
+                .normalized()
+                .mirror(&Direction(Vec3([0.0, 0.0, 1.0]))),
+            Direction(Vec3([1.0, 1.0, 1.0])).normalized()
         );
     }
 
     #[test]
     fn reflect() {
         assert_eq!(
-            Direction(Vec3(1.0, -1.0, 0.0)).normalized().reflect(&Direction(Vec3(0.0, 1.0, 0.0))),
-            Direction(Vec3(1.0, 1.0, 0.0)).normalized()
+            Direction(Vec3([1.0, -1.0, 0.0]))
+                .normalized()
+                .reflect(&Direction(Vec3([0.0, 1.0, 0.0]))),
+            Direction(Vec3([1.0, 1.0, 0.0])).normalized()
         );
 
         assert_eq!(
-            Direction(Vec3(1.0, 1.0, -1.0)).normalized().reflect(&Direction(Vec3(0.0, 0.0, 1.0))),
-            Direction(Vec3(1.0, 1.0, 1.0)).normalized()
+            Direction(Vec3([1.0, 1.0, -1.0]))
+                .normalized()
+                .reflect(&Direction(Vec3([0.0, 0.0, 1.0]))),
+            Direction(Vec3([1.0, 1.0, 1.0])).normalized()
         );
     }
 }

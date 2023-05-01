@@ -1,2 +1,5 @@
 /target
 out.png
+*.svg
+*.png
+perf.data*

@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
 mod vec3;
+use smallvec::*;
 use vec3::*;
 
 mod aa;
@@ -32,7 +33,6 @@ pub struct Intersection {
     pub point: Point,
     pub surface_normal: Direction,
 }
-
 
 #[derive(Debug)]
 enum Shape {
@@ -108,11 +108,16 @@ impl Scene {
         closest
     }
 
-    fn light_positions(center_ray: &Ray, light_radius: f64, count: usize) -> Vec<Point> {
-        let mut positions = Vec::with_capacity(count);
+    fn light_positions(
+        center_ray: &Ray,
+        light_radius: f64,
+        count: usize,
+        positions: &mut SmallVec<[Point; Self::MAX_LIGHT_POINTS]>,
+    ) {
+        positions.clear();
         positions.push(center_ray.0);
         if light_radius > 0.0 {
-            let up = Direction(Vec3(0.0, 0.0, 1.0));
+            let up = Direction(Vec3([0.0, 0.0, 1.0]));
             let right = center_ray.1.cross(&up).normalized();
 
             let revolutions_in_spiral = 2.0;
@@ -126,9 +131,11 @@ impl Scene {
                 positions.push(center_ray.0 + theta.cos() * right + theta.sin() * up);
             }
         }
-        positions
     }
 
+    const MAX_LIGHT_POINTS: usize = 10;
+
+    #[inline(never)]
     fn render_ray(&self, ray: &Ray, mut recursion_limit: usize) -> Color {
         let mut color = BLACK;
 
@@ -137,6 +144,13 @@ impl Scene {
         }
 
         recursion_limit -= 1;
+
+        let light_points = 1;
+
+        assert!(light_points <= Self::MAX_LIGHT_POINTS);
+
+        let mut light_positions: SmallVec<[_; Self::MAX_LIGHT_POINTS]> =
+            smallvec![Point::origin(); Self::MAX_LIGHT_POINTS];
 
         if let Some((object, i)) = self.closest_intersection(&ray) {
             color += Color(0.0, 0.0, 0.0); // ambient
@@ -147,9 +161,9 @@ impl Scene {
                 let mut shaded = 0;
                 let mut total = 0;
                 let center_ray = Ray(l.point, i.point - l.point);
-                let light_positions = Self::light_positions(&center_ray, l.radius, 1);
-                for light_position in light_positions {
-                    let light_dir = light_position - i.point;
+                Self::light_positions(&center_ray, l.radius, light_points, &mut light_positions);
+                for light_position in &light_positions {
+                    let light_dir = *light_position - i.point;
                     let light_distance = light_dir.0.magnitude();
                     let ray_to_light = Ray(slightly_off_surface, light_dir.normalized());
                     if let Some((_shadow_obj, shadow_i)) = self.closest_intersection(&ray_to_light)
@@ -195,7 +209,7 @@ impl Scene {
                 assert!(c.2 >= 0.0);
                 color += c;
             }
-        
+
             // reflection
             if object.material.reflectivity > 0.0 {
                 let reflected_dir = ray.1.reflect(&i.surface_normal).normalized();
@@ -229,13 +243,13 @@ impl Scene {
         let center_x = self.imgx as f64 / 2.0;
         let center_y = self.imgy as f64 / 2.0;
 
-        let aa = AntiAliasing::create(2);
+        let aa = AntiAliasing::create(3);
 
         // Iterate over the coordinates and pixels of the image
         let mut pixels: Vec<_> = imgbuf.enumerate_pixels_mut().collect();
         pixels //.iter_mut()
-            .par_iter_mut()
-            // .iter_mut()
+            // .par_iter_mut()
+            .iter_mut()
             .for_each(|(x, y, pixel)| {
                 let mut color = BLACK;
 
@@ -251,7 +265,7 @@ impl Scene {
                     let pixel_dir = Direction(pixel_dir.normalized());
                     let pixel_ray = Ray(self.camera.ray.0, pixel_dir);
 
-                    color += self.render_ray(&pixel_ray, 5);
+                    color += self.render_ray(&pixel_ray, 1);
                     count += 1;
                 }
 
@@ -268,7 +282,7 @@ fn main() {
     let shapes: Vec<_> = vec![
         Object {
             shape: Shape::Sphere {
-                center: Point(Vec3(0.0, 0.0, 0.0)),
+                center: Point(Vec3([0.0, 0.0, 0.0])),
                 radius: 0.7,
             },
             material: Material {
@@ -280,7 +294,7 @@ fn main() {
         },
         Object {
             shape: Shape::Sphere {
-                center: Point(Vec3(-0.7, 0.7, -1.0)),
+                center: Point(Vec3([-0.7, 0.7, -1.0])),
                 radius: 1.0,
             },
             material: Material {
@@ -292,7 +306,7 @@ fn main() {
         },
         Object {
             shape: Shape::Sphere {
-                center: Point(Vec3(1.0, -1.0, 1.0)),
+                center: Point(Vec3([1.0, -1.0, 1.0])),
                 radius: 0.5,
             },
             material: Material {
@@ -304,8 +318,8 @@ fn main() {
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(0.0, 0.0, -10.0)),
-                normal: Direction(Vec3(0.0, 0.0, 1.0)),
+                point: Point(Vec3([0.0, 0.0, -10.0])),
+                normal: Direction(Vec3([0.0, 0.0, 1.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
@@ -316,75 +330,75 @@ fn main() {
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(0.0, 0.0, 10.0)),
-                normal: Direction(Vec3(0.0, 0.0, -1.0)),
+                point: Point(Vec3([0.0, 0.0, 10.0])),
+                normal: Direction(Vec3([0.0, 0.0, -1.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
-                specular_color: 0.1*WHITE,
+                specular_color: 0.1 * WHITE,
                 shininess: 50.0,
                 reflectivity: 0.7,
             },
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(10.0, 0.0, 0.0)),
-                normal: Direction(Vec3(-1.0, 0.0, 0.0)),
+                point: Point(Vec3([10.0, 0.0, 0.0])),
+                normal: Direction(Vec3([-1.0, 0.0, 0.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
-                specular_color: 0.1*WHITE,
+                specular_color: 0.1 * WHITE,
                 shininess: 50.0,
                 reflectivity: 0.7,
             },
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(-10.0, 0.0, 0.0)),
-                normal: Direction(Vec3(1.0, 0.0, 0.0)),
+                point: Point(Vec3([-10.0, 0.0, 0.0])),
+                normal: Direction(Vec3([1.0, 0.0, 0.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
-                specular_color: 0.1*WHITE,
+                specular_color: 0.1 * WHITE,
                 shininess: 50.0,
                 reflectivity: 0.7,
             },
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(0.0, 10.0, 0.0)),
-                normal: Direction(Vec3(0.0, -1.0, 0.0)),
+                point: Point(Vec3([0.0, 10.0, 0.0])),
+                normal: Direction(Vec3([0.0, -1.0, 0.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
-                specular_color: 0.1*WHITE,
+                specular_color: 0.1 * WHITE,
                 shininess: 50.0,
                 reflectivity: 0.7,
             },
         },
         Object {
             shape: Shape::Plane {
-                point: Point(Vec3(0.0, -10.0, 0.0)),
-                normal: Direction(Vec3(0.0, 1.0, 0.0)),
+                point: Point(Vec3([0.0, -10.0, 0.0])),
+                normal: Direction(Vec3([0.0, 1.0, 0.0])),
             },
             material: Material {
                 diffuse_color: 0.1 * WHITE,
-                specular_color:0.5* WHITE,
+                specular_color: 0.5 * WHITE,
                 shininess: 50.0,
                 reflectivity: 0.7,
             },
-        }
+        },
     ];
 
     let lights = vec![
         Light {
-            point: Point(Vec3(-2.0, 1.0, 0.7)),
+            point: Point(Vec3([-2.0, 1.0, 0.7])),
             color: WHITE,
             intensity: 0.6,
             radius: 0.05,
         },
         Light {
-            point: Point(Vec3(-2.0, -2.0, 2.0)),
+            point: Point(Vec3([-2.0, -2.0, 2.0])),
             color: WHITE,
             intensity: 0.7,
             radius: 0.05,
@@ -393,8 +407,8 @@ fn main() {
 
     let scene = Scene {
         camera: Camera {
-            ray: Ray::from_points(Point(Vec3(-4.9, 3.0, 3.0)), Point(Vec3(0.0, 0.0, 0.0))),
-            up: Direction(Vec3(0.0, 0.0, 1.0)),
+            ray: Ray::from_points(Point(Vec3([-4.9, 3.0, 3.0])), Point(Vec3([0.0, 0.0, 0.0]))),
+            up: Direction(Vec3([0.0, 0.0, 1.0])),
             w_fov_degrees: 90.0,
         },
         imgx: 800,
